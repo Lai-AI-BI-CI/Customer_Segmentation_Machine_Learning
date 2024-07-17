@@ -1,0 +1,446 @@
+---
+title: "Customer Segmentation Machine Learning"
+author: "Author: Lai Yeung"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
+    number_sections: true
+    # highlight: haddock
+  # word_document: default
+# runtime: shiny
+---
+
+<!-- tab.id='tab1', label='tab1', tab.cap="Product Revenue -->
+```{css, echo=FALSE}
+#header > h1 {
+  text-align: center;
+  color: Orange;
+  font-weight: bold;
+}
+#header > h4 {
+  text-align: right;
+  font-weight: bold;
+}
+h1, #TOC>ul>li {
+  font-weight: bold;
+}
+
+div.main-container {
+  max-width: 2880px;
+  margin-left: auto;
+  margin-right: auto;
+}
+```
+
+<!-- .main-container{ -->
+<!-- max-width: 1600px !important; -->
+<!-- max-width: 100% !important; -->
+<!-- max-width: 1600px; -->
+<!-- } -->
+  
+<!-- text front size -->
+<style type="text/css">
+  body{
+  font-size: 12pt;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE
+                      , message = FALSE
+                      , warning = FALSE
+                      , dev=c('png')
+                      ,ft_show_coltype = FALSE
+                      ,ft.align="center"
+                      ,tab.topcaption=FALSE
+                      ,fig.asp = 0.8, fig.width = 9, out.width = "70%"
+                      # ,fig.asp = 0.8, fig.width = 9, out.width = "100%"
+                      ,tab.cap.pre="Table")
+
+library(flextable)
+
+set_flextable_defaults(font.size = 11,
+  digits = 1, decimal.mark = ".", big.mark = ",",
+  na_str = "NA", fmt_date = "%d/%m/%Y")
+
+init_flextable_defaults()
+
+tab_theme <- function(x, ...) {
+  x <- x %>% flextable() %>% theme_booktabs(bold_header = TRUE) %>% 
+    theme_vanilla() %>% 
+    theme_zebra() %>%
+    align(align = "center", part = "header") %>% 
+    align(align = "right", part = "body")
+  autofit(x)
+}
+
+use_df_printer()
+
+library(officer)
+small_border = fp_border(color="black", width = 1)
+
+# library(shiny)
+
+```
+
+```{r echo = FALSE, include=FALSE}
+library(readr) #Fastly write csv
+library(readxl) #Fastly write read xlsx
+library(writexl)
+library(stringr)
+library(stringi)
+library(dplyr)
+library(lubridate)
+library(data.table)
+library(sqldf)
+library(plotly)
+library(ggplot2)
+library(scales)
+library(crosstalk)
+library(DT)
+library(reshape2)
+library(tidyr)
+# Sys.setenv(JAVA_HOME='D:/Java/jre1.8.0_202')
+# library(xlsx)
+library(tcltk)
+library(rlang)
+library(zoo)
+library(summarytools)
+library(forcats)
+
+#-------------------------- remove scientific notation
+options(scipen=999)
+gen_date <- today()
+# gen_date <- as.Date("2021-12-31")
+
+setwd("C:/Users/kwanl/Documents/GitHub/Customer_Segmentation_Machine_Learning")
+load("Report_Graph.RData")
+
+load("Report_Data.RData")
+
+######################## snapshot time ########################
+# Can Adjust depend on snapshot time
+data_max_date <- as.Date(as.POSIXct("2022-05-31", tz = "GMT", format = "%Y-%m-%d"))
+# data_max_date <- as.Date(max(pos_invoice_prod$TransactionDate))
+
+```
+
+```{r echo = FALSE, include=FALSE}
+######################################## ggplot ########################################
+theme_ben <- function(base_size = 14) {
+  theme_bw(base_size = base_size) %+replace%
+    theme(
+      # L'ensemble de la figure
+      plot.title = element_text(size = rel(1.5), face = "bold", margin = margin(0,0,5,0), hjust = 0.5, color = "gold3"),
+      plot.caption = element_text(size = rel(0.8), face = "italic", hjust = 1, color = "grey"),
+      # Zone où se situe le graphique
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      # Les axes
+      axis.title = element_text(size = rel(0.85), face = "bold"),
+      axis.text = element_text(size = rel(0.70), face = "bold"),
+      axis.line = element_line(color = "black", arrow = arrow(length = unit(0.3, "lines"), type = "closed")),
+      # La légende
+      legend.title = element_text(size = rel(0.85), face = "bold"),
+      legend.text = element_text(size = rel(0.70), face = "bold"),
+      legend.key = element_rect(fill = "transparent", colour = NA),
+      legend.key.size = unit(1.5, "lines"),
+      legend.background = element_rect(fill = "transparent", colour = NA),
+      # Les étiquettes dans le cas d'un facetting
+      strip.background = element_rect(fill = "#17252D", color = "#17252D"),
+      strip.text = element_text(size = rel(0.85), face = "bold", color = "white", margin = margin(5,0,5,0))
+    )
+}
+
+theme_layout <- function(data, caption = NA_character_, caption_margin = 100, y = -0.18){
+  data %>% layout(
+    legend = list(title = list(text = "Click below symbol to exclude:")),
+    margin = list(b = caption_margin),
+    annotations = list(x = 1, y = y, text = paste0("<i>",caption,"</i>"), 
+                       showarrow = F, xref='paper', yref='paper', 
+                       xanchor='right', yanchor='auto', xshift=0, yshift=0,
+                       font=list(size=13, color="#BEBEBE")),
+    xaxis = list(autorange = TRUE),
+    yaxis = list(autorange = TRUE)
+  )
+}
+
+title_font <- list(
+  size = 14*2,
+  color = "rgba(205, 173, 0, 1)")
+
+```
+
+# ) Customer Spending Profile
+```{r fig.asp = 0.8, fig.width = 12, out.width = "70%"}
+######################################## Cust Spending Amount Quantile ########################################
+ggplotly(plot_cust_left_yrs_grp_amt,
+         dynamicTicks = TRUE
+         # tooltip = c("text")
+         ) %>%
+  config(displaylogo = FALSE, displayModeBar = TRUE, modeBarButtons = list(list("toImage"), list("zoom2d"), list("select2d"), list("hoverClosestCartesian"), list("hoverCompareCartesian"))) %>% 
+  # highlight(on = "plotly_selected", off = "plotly_doubleclick", selected = attrs_selected(showlegend = FALSE)) %>% 
+  # theme_layout(caption = "Data source: MNG + WTC", caption_margin = 100) %>%
+  layout(
+    legend = list(title = list(text = "Click below\nsymbol\n to exclude:")),
+    margin = list(t = 150),
+    title = list(text = paste0('<b>',"Customer Spending ($)", "By Left Year Group\n", "(Start from ", min(pos_invoice_prod_2$TransactionDate), " to ", data_max_date,")", '</b>'), font = title_font, y = 0.95, x = 0.5),
+    # title = list(text = paste0('<b>',"YTD (Jan - ",months(max(raw_data_6$DATE), abbreviate = T),")", '</b>')),
+    # xaxis = list(tickformat = ".0%"),
+    yaxis = list(tickformat = "$,.0f")
+    # title = paste(
+    #       '<b>', "Product Revenue($) and Product Qty(#) ", "By Product",'</b>',
+    #       '<br><sup><b>', "YTD (Jan - ",months((floor_date(as.Date(gen_date), unit = "month") - 1), abbreviate = T),")",'</b></sup>'
+    #     )
+  )
+
+# Table Structure: Columns' Name
+sketch = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, 'QUANTILE_GRP'),
+      th(colspan = 3, '<=2'),
+      th(colspan = 3, '2-4'),
+      th(colspan = 3, '4-5')
+    ),
+    tr(
+      lapply(rep(c('Quantile', 'Cust #', 'Cust Amt Avg $'), 3), th)
+    )
+  )
+))
+
+temp_data_table <- plot_cust_left_yrs_grp_amt_table
+
+DT::datatable(temp_data_table,
+              options = list(paging = TRUE,    ## paginate the output
+                             pageLength = 10,  ## number of rows to output for each page
+                             scrollX = TRUE,   ## enable scrolling on X axis
+                             scrollY = TRUE,   ## enable scrolling on Y axis
+                             # autoWidth = TRUE, ## use smart column width handling
+                             server = FALSE,   ## use client-side processing
+                             dom = 't'
+                             # buttons = c('csv', 'excel'),
+                             # columnDefs = list(list(targets = '_all', className = 'dt-center'),
+                             #                   list(targets = c(0, 8, 9), visible = FALSE))
+              ),
+              container = sketch,
+              # class = 'cell-border stripe',
+              selection = list(selectable = FALSE),
+              # extensions = 'Buttons',
+              # selection = 'single', ## enable selection of a single row
+              # filter = 'top',              ## include column filters at the bottom
+              rownames = FALSE                ## don't show row numbers/names
+) %>% 
+  formatCurrency(columns = grep("(Quantile_)|(CUST_AMT_AVG_)", names(temp_data_table), value = T), digits = 0) %>%
+  formatRound(columns = grep("(CUST_CNT_)", names(temp_data_table), value = T), digits = 0) %>% 
+  formatStyle(
+    'Quantile_<=2', 'QUANTILE_GRP',
+    backgroundColor = styleEqual(c('quant25', 'quant50', 'quant75'), c('yellow'))
+  ) %>% 
+  formatStyle(
+    c("QUANTILE_GRP_CUST_CNT_2-4", "QUANTILE_GRP_CUST_CNT_4-7"), 'QUANTILE_GRP',
+    backgroundColor = styleEqual(c('Total'), c('yellow'))
+  ) %>%
+  formatStyle(columns = "QUANTILE_GRP",
+              target = "row",
+              # valueColumns = "PROD_REV_YOY",
+              # color = styleInterval(0, c("red", "black")),
+              # backgroundColor = styleEqual(c('Total'), c('yellow')),
+              backgroundPosition = "center",
+              fontWeight = styleEqual(c('Total'), c('bold')),
+              `font-size` = "16px")
+
+```
+
+Highlighted in <span style="background-color:yellow">yellow</span>:
+
+Target Spending: Hoping close to Customer Left Year Group <=2
+
+Historical Spending: Use as baseline, ideally not less than before
+
+Approximately:
+
+**_55,984 X Assume Response Rate X \$1,045 + 2,030 X Assume Response Rate X \$599 = Expected Revenue_**
+
+Expected Revenue Details could be using QUANTILE_GRP.
+
+```{r echo = FALSE, include=FALSE}
+```
+
+# ) Rencency, Frequency, Monetary Distribution
+```{r fig.asp = 0.8, fig.width = 9, out.width = "100%"}
+######################################## RFM ########################################
+plot_custom_rfm_histograms
+```
+
+Rencency: Time since last purchase
+
+Frequency: Store Visit
+
+Monetary: Spending Amount
+
+```{r fig.asp = 1, fig.width = 9, out.width = "70%"}
+plot_rfm_bar_chart
+#   layout(
+#     margin = list(r = 100)
+#   )
+# plot_rfm_bar_chart$x$layout$annotations[[2]]$text <- "Recency Score"
+# plot_rfm_bar_chart$x$layout$annotations[[2]]$x <- 1.08
+# plot_rfm_bar_chart$x$layout$annotations[[2]]$textangle <- 90
+```
+
+# ) Customer Orders Distribution
+```{r}
+custom_rfm_order_dist
+```
+_<span style="color:red">Remarks: Orders actually mean store visit.</span>_
+
+# ) Customer Segment
+```{r}
+DT::datatable(segment_table_def_final,
+              options = list(paging = TRUE,    ## paginate the output
+                             pageLength = 10,  ## number of rows to output for each page
+                             scrollX = TRUE,   ## enable scrolling on X axis
+                             scrollY = TRUE,   ## enable scrolling on Y axis
+                             # autoWidth = TRUE, ## use smart column width handling
+                             server = FALSE,   ## use client-side processing
+                             dom = 't'
+                             # buttons = c('csv', 'excel'),
+                             # columnDefs = list(list(targets = '_all', className = 'dt-center'),
+                             #                   list(targets = c(0, 8, 9), visible = FALSE))
+              ),
+              # class = 'cell-border stripe',
+              selection = list(selectable = TRUE),
+              # extensions = 'Buttons',
+              # selection = 'single', ## enable selection of a single row
+              # filter = 'top',              ## include column filters at the bottom
+              rownames = FALSE                ## don't show row numbers/names
+)
+
+custom_rfm_bar
+```
+
+## Median Recency
+```{r fig.asp = 0.8, fig.width = 12, out.width = "70%"}
+cust_rfm_plot_median_r
+```
+
+## Median Frequency
+```{r fig.asp = 0.8, fig.width = 12, out.width = "70%"}
+cust_rfm_plot_median_f
+```
+
+## Median Monetary
+```{r fig.asp = 0.8, fig.width = 12, out.width = "70%"}
+cust_rfm_plot_median_m
+```
+
+# ) Target Customer Waterfall
+```{r}
+######################################## RFM ########################################
+plot_waterfall_cnt
+```
+
+# ) Contact List
+```{r}
+ggplotly(plot_cust_left_yrs_grp_amt_final_send,
+         dynamicTicks = TRUE
+         # tooltip = c("text")
+) %>%
+  config(displaylogo = FALSE, displayModeBar = TRUE, modeBarButtons = list(list("toImage"), list("zoom2d"), list("select2d"), list("hoverClosestCartesian"), list("hoverCompareCartesian"))) %>%
+  # highlight(on = "plotly_selected", off = "plotly_doubleclick", selected = attrs_selected(showlegend = FALSE)) %>%
+  # theme_layout(caption = "Data source: MNG + WTC", caption_margin = 100) %>%
+  layout(
+    legend = list(title = list(text = "Click below\nsymbol\n to exclude:")),
+    margin = list(t = 150),
+    title = list(text = paste0('<b>',"Customer Spending ($)", "By Left Year Group\n", "(Start from ", min(pos_invoice_prod_2$TransactionDate), " to ", data_max_date,")", '</b>'), font = title_font, y = 0.95, x = 0.5),
+    # xaxis = list(tickformat = ".0%"),
+    yaxis = list(tickformat = "$,.0f")
+    # title = paste(
+    #       '<b>', "Product Revenue($) and Product Qty(#) ", "By Product",'</b>',
+    #       '<br><sup><b>', "YTD (Jan - ",months((floor_date(as.Date(gen_date), unit = "month") - 1), abbreviate = T),")",'</b></sup>'
+    #     )
+  )
+
+# Table Structure: Columns' Name
+sketch = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, 'QUANTILE_GRP'),
+      th(colspan = 3, '2-4'),
+      th(colspan = 3, '4-5')
+    ),
+    tr(
+      lapply(rep(c('Quantile', 'Cust #', 'Cust Amt Avg $'), 2), th)
+    )
+  )
+))
+
+temp_data_table <- plot_cust_left_yrs_grp_amt_final_send_table
+
+DT::datatable(temp_data_table,
+              options = list(paging = TRUE,    ## paginate the output
+                             pageLength = 10,  ## number of rows to output for each page
+                             scrollX = TRUE,   ## enable scrolling on X axis
+                             scrollY = TRUE,   ## enable scrolling on Y axis
+                             # autoWidth = TRUE, ## use smart column width handling
+                             server = FALSE,   ## use client-side processing
+                             dom = 't'
+                             # buttons = c('csv', 'excel'),
+                             # columnDefs = list(list(targets = '_all', className = 'dt-center'),
+                             #                   list(targets = c(0, 8, 9), visible = FALSE))
+              ),
+              container = sketch,
+              # class = 'cell-border stripe',
+              selection = list(selectable = FALSE),
+              # extensions = 'Buttons',
+              # selection = 'single', ## enable selection of a single row
+              # filter = 'top',              ## include column filters at the bottom
+              rownames = FALSE                ## don't show row numbers/names
+) %>%
+  formatCurrency(columns = grep("(Quantile_)|(CUST_AMT_AVG_)", names(temp_data_table), value = T), digits = 0) %>%
+  formatRound(columns = grep("(CUST_CNT_)", names(temp_data_table), value = T), digits = 0) %>%
+  formatStyle(
+    'Quantile_<=2', 'QUANTILE_GRP',
+    backgroundColor = styleEqual(c('quant25', 'quant50', 'quant75'), c('yellow'))
+  ) %>%
+  formatStyle(
+    c("QUANTILE_GRP_CUST_CNT_2-4", "QUANTILE_GRP_CUST_CNT_4-7"), 'QUANTILE_GRP',
+    backgroundColor = styleEqual(c('Total'), c('yellow'))
+  ) %>%
+  formatStyle(columns = "QUANTILE_GRP",
+              target = "row",
+              # valueColumns = "PROD_REV_YOY",
+              # color = styleInterval(0, c("red", "black")),
+              # backgroundColor = styleEqual(c('Total'), c('yellow')),
+              backgroundPosition = "center",
+              fontWeight = styleEqual(c('Total'), c('bold')),
+              `font-size` = "16px")
+
+```
+
+Highlighted in <span style="background-color:yellow">yellow</span>:
+
+Total No. of Customers available to contact.
+
+Historical Spending: Use as baseline, ideally not less than before
+
+Approximately:
+
+Before
+
+**_55,984 X Assume Response Rate X \$1,045 + 2,030 X Assume Response Rate X \$599 = Expected Revenue_**
+
+After
+
+**_46,988 X Assume Response Rate X \$1,018 + 1,684 X Assume Response Rate X \$599 = Expected Revenue_**
+
+Expected Revenue Details could be using QUANTILE_GRP.
+
+<div class="tocify-extend-page" data-unique="tocify-extend-page" style="height: 0;"></div>
