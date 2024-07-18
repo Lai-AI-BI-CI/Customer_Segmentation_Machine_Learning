@@ -1,8 +1,9 @@
 # Customer Segmentation Machine Learning
 
 ## Introduction
-- Perform sales analysis for product channels in a step-by-step manner.
-- Analyze and gain insights into product performance across different sales channels.
+- Perform customer segmentation using machine learning techniques to group customers based on their similarities and characteristics.
+- Gain insights into customer behavior, preferences, and needs for targeted marketing strategies.
+- Enhance customer satisfaction and optimize business strategies by tailoring products and services to specific customer segments.
 
 ## Quick start to view
 Click the link to view **>** [Customer Segmentation Machine Learning](https://lai-ai-bi-ci.github.io/Customer_Segmentation_Machine_Learning/)
